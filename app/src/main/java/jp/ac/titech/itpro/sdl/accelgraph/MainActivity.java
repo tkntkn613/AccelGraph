@@ -16,10 +16,10 @@ public class MainActivity extends Activity implements SensorEventListener {
     private final static String TAG = "MainActivity";
 
     private TextView rateView, accuracyView;
-    private GraphView xView, yView, zView;
+    private GraphView xView, yView, zView, gView;
 
     private SensorManager sensorMgr;
-    private Sensor accelerometer;
+    private Sensor accelerometer, gyroscope;
 
     private final static long GRAPH_REFRESH_WAIT_MS = 20;
 
@@ -27,7 +27,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private Handler handler;
 
     private final static float alpha = 0.8f;
-    private float vx, vy, vz;
+    private float vx, vy, vz, vg;
     private float rate;
     private int accuracy;
     private long prevts;
@@ -43,11 +43,19 @@ public class MainActivity extends Activity implements SensorEventListener {
         xView = (GraphView) findViewById(R.id.x_view);
         yView = (GraphView) findViewById(R.id.y_view);
         zView = (GraphView) findViewById(R.id.z_view);
+        gView = (GraphView) findViewById(R.id.g_view);
 
         sensorMgr = (SensorManager) getSystemService(SENSOR_SERVICE);
         accelerometer = sensorMgr.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         if (accelerometer == null) {
             Toast.makeText(this, getString(R.string.toast_no_accel_error),
+                    Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        gyroscope = sensorMgr.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        if(gyroscope == null) {
+            Toast.makeText(this, getString(R.string.toast_no_gyro_error),
                     Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -61,6 +69,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         super.onResume();
         Log.i(TAG, "onResume");
         sensorMgr.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorMgr.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_FASTEST);
         th = new GraphRefreshThread();
         th.start();
     }
@@ -75,11 +84,17 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        vx = alpha * vx + (1 - alpha) * event.values[0];
-        vy = alpha * vy + (1 - alpha) * event.values[1];
-        vz = alpha * vz + (1 - alpha) * event.values[2];
-        rate = ((float) (event.timestamp - prevts)) / (1000 * 1000);
-        prevts = event.timestamp;
+        if(event.sensor == accelerometer) {
+            vx = alpha * vx + (1 - alpha) * event.values[0];
+            vy = alpha * vy + (1 - alpha) * event.values[1];
+            vz = alpha * vz + (1 - alpha) * event.values[2];
+
+            rate = ((float) (event.timestamp - prevts)) / (1000 * 1000);
+            prevts = event.timestamp;
+        } else if(event.sensor == gyroscope) {
+            // X-axis
+            vg = alpha * vg + (1 - alpha) * event.values[0];
+        }
     }
 
     @Override
@@ -99,6 +114,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                             xView.addData(vx, true);
                             yView.addData(vy, true);
                             zView.addData(vz, true);
+                            gView.addData(vg, true);
                         }
                     });
                     Thread.sleep(GRAPH_REFRESH_WAIT_MS);
